@@ -25,6 +25,9 @@ public class MainActivity extends AppCompatActivity
         implements ScanListener, ActivatorListener {
     private static final String TAG = "MainActivity";
 
+    //The serial number of the designated device
+    private final String serial = "133398";
+
     //All transferred data is encrypted using a 16 Byte random key
     // This is passed to and from our server using Base64 format.
     private final String key = "ciNNPxZXoB_0C7htKpejCw==";
@@ -32,6 +35,7 @@ public class MainActivity extends AppCompatActivity
     private Button scanBtn;
     private TextView resultTv;
     private Button connectBtn;
+    private Button sleepBtn;
 
     //If to be used across multiple activities, this is best placed
     // at the application level and referenced
@@ -53,6 +57,9 @@ public class MainActivity extends AppCompatActivity
         connectBtn = (Button) findViewById(R.id.main_btn_connect);
         connectBtn.setOnClickListener(v -> connectToFirst());
 
+        sleepBtn = (Button) findViewById(R.id.main_btn_sleep);
+        sleepBtn.setOnClickListener(v -> setToSleep());
+
         palBle = new PalBle(this);
         palBle.setListener(this);
     }
@@ -69,10 +76,29 @@ public class MainActivity extends AppCompatActivity
     private void connectToFirst() {
         List<PalDevice> devices = palBle.getScanResults();
         for(PalDevice d : devices) {
-            if(d.getSerial().equals("780000")) {
+            if(d.getSerial().equals(serial)) {
                 //This uses the PalBle.connect as opposed to the PalDevice.connect method
                 // this combines scan and connect
                 palBle.connect(d.getSerial(), key);
+            }
+        }
+    }
+
+    //Puts the device into sleep mode
+    private void setToSleep() {
+        List<PalDevice> devices = palBle.getScanResults();
+        for(PalDevice d : devices) {
+            if(d.getSerial().equals(serial)) {
+                //Here we communicate with the device directly, as such
+                // we need to set the callback listener
+                try {
+                    d.setListener(this);
+                } catch (Throwable throwable) {
+                    Log.w(TAG, "setToSleep: Failed to set listener", throwable);
+                    break;
+                }
+                ((PalActivator) d).setSleep();
+                break;
             }
         }
     }
@@ -107,6 +133,7 @@ public class MainActivity extends AppCompatActivity
                         result += d.getName() + " " + d.getSerial() + "(" + Integer.toString(d.getFirmwareVersion()) + ")" + "\n";
                     scanBtn.setVisibility(View.GONE);
                     connectBtn.setVisibility(View.VISIBLE);
+                    sleepBtn.setVisibility(View.VISIBLE);
                 }
             } else
                 resultTv.setVisibility(View.VISIBLE);
@@ -168,6 +195,11 @@ public class MainActivity extends AppCompatActivity
     }
 
     @Override
+    public void onSleep() {
+        Log.i(TAG, "onSleep: Device has entered sleep mode");
+    }
+
+    @Override
     public void onDataDownload(byte[] bytes) {
 
     }
@@ -195,18 +227,23 @@ public class MainActivity extends AppCompatActivity
 
     }
 
+    //The below methods have been updated to return the calling PalDevice.
+    // This is to allow parallel device communication.
+
+    //Connection attempts can fail for a range of reasons. As such the library will
+    // internally reattempt a connection three times, calling this method each time it tries again.
     @Override
-    public void onRetrying(int i) {
+    public void onRetrying(PalDevice palDevice, int i) {
 
     }
 
     @Override
-    public void onInvalidEncryptionKey() {
+    public void onInvalidEncryptionKey(PalDevice palDevice) {
 
     }
 
     @Override
-    public void onDeviceError(Throwable throwable) {
+    public void onDeviceError(PalDevice palDevice, Throwable throwable) {
 
     }
 
