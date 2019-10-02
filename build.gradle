@@ -22,7 +22,7 @@ allprojects {
 
         //Include the PAL Technologies maven repository
         maven {
-            url  "https://palt.bintray.com/maven"
+            url  "https://dl.bintray.com/pal/maven"
         }
     }
 }
