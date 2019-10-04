@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.Locale;
 
 public class ContinuousService extends ActivatorMicroService {
     private static final String TAG = "ContinuousService";
@@ -35,12 +36,12 @@ public class ContinuousService extends ActivatorMicroService {
     private Vibrator vibrator;
 
     private LocalBroadcastManager localBroadcastManager;
-    public static final String SERVICE_RESULT = "com.paltechnologies.activatorrxrt.services.activatormicroservice.RESULT";
-    public static final String SERVICE_MESSAGE = "com.paltechnologies.activatorrxrt.services.activatormicroservice.MESSAGE";
-    public static final String MESSAGE_CONNECTED = "com.paltechnologies.activatorrxrt.services.activatormicroservice.MESSAGE_CONNECTED";
-    public static final String MESSAGE_DISCONNECTED = "com.paltechnologies.activatorrxrt.services.activatormicroservice.MESSAGE_DISCONNECTED";
-    public static final String MESSAGE_STEPS = "com.paltechnologies.activatorrxrt.services.activatormicroservice.MESSAGE_STEPS";
-    public static final String EXTRA_STEPS = "com.paltechnologies.activatorrxrt.services.activatormicroservice.EXTRA_STEPS";
+    public static final String SERVICE_RESULT =         "com.paltechnologies.activatorrxrt.services.activatormicroservice.RESULT";
+    public static final String SERVICE_MESSAGE =        "com.paltechnologies.activatorrxrt.services.activatormicroservice.MESSAGE";
+    public static final String MESSAGE_CONNECTED =      "com.paltechnologies.activatorrxrt.services.activatormicroservice.MESSAGE_CONNECTED";
+    public static final String MESSAGE_DISCONNECTED =   "com.paltechnologies.activatorrxrt.services.activatormicroservice.MESSAGE_DISCONNECTED";
+    public static final String MESSAGE_STEPS =          "com.paltechnologies.activatorrxrt.services.activatormicroservice.MESSAGE_STEPS";
+    public static final String EXTRA_STEPS =            "com.paltechnologies.activatorrxrt.services.activatormicroservice.EXTRA_STEPS";
 
 
     @Override
@@ -148,7 +149,7 @@ public class ContinuousService extends ActivatorMicroService {
         notificationManager.notify(1, getNotification(title, text));
     }
 
-    private Notification getNotification(String title, String string) {
+    private Notification getNotification(String title, String text) {
         this.title = title;
         this.text = text;
 
@@ -158,7 +159,7 @@ public class ContinuousService extends ActivatorMicroService {
 
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle(title)
-                .setContentText(string)
+                .setContentText(text)
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setContentIntent(pendingIntent)
                 .build();
@@ -208,7 +209,7 @@ public class ContinuousService extends ActivatorMicroService {
                     new FileOutputStream(getPublicStorageDir("uActivator/continuous.log"), true));
             Calendar calendar = Calendar.getInstance();
             calendar.setTimeInMillis(System.currentTimeMillis());
-            SimpleDateFormat format = new SimpleDateFormat("yyyy_MM_dd__HH_mm_ss");
+            SimpleDateFormat format = new SimpleDateFormat("yyyy_MM_dd__HH_mm_ss", Locale.ENGLISH);
             String time = format.format(calendar.getTime()) + ":\t";
             time += message + "\n";
             outputStreamWriter.write(time);
@@ -225,7 +226,7 @@ public class ContinuousService extends ActivatorMicroService {
                     new FileOutputStream(getPublicStorageDir("uActivator/continuous_battery.log"), true));
             Calendar calendar = Calendar.getInstance();
             calendar.setTimeInMillis(System.currentTimeMillis());
-            SimpleDateFormat format = new SimpleDateFormat("yyyy_MM_dd__HH_mm_ss");
+            SimpleDateFormat format = new SimpleDateFormat("yyyy_MM_dd__HH_mm_ss", Locale.ENGLISH);
             String time = format.format(calendar.getTime()) + ":\t";
             time += battery + "\n";
             outputStreamWriter.write(time);
@@ -245,9 +246,8 @@ public class ContinuousService extends ActivatorMicroService {
             }
         }
 
-        File path = new File(Environment.getExternalStoragePublicDirectory(
+        return new File(Environment.getExternalStoragePublicDirectory(
                 Environment.DIRECTORY_DOCUMENTS), fileName);
-        return path;
     }
     /* **** Data Saving END *****/
 }

@@ -9,10 +9,12 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Environment;
 import android.preference.PreferenceManager;
+import android.support.annotation.NonNull;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.content.LocalBroadcastManager;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -40,14 +42,13 @@ import com.paltechnologies.pal8.exceptions.ListenerException;
 import com.polidea.rxandroidble2.exceptions.BleScanException;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.List;
+import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity
         implements ScanListener, PalActivatorMicroListener {
@@ -57,8 +58,6 @@ public class MainActivity extends AppCompatActivity
     private static final String lastSerial = "com.palt.examplepalble.LAST_NEW_SERIAL";
 
     private EditText serialEt;
-    private FloatingActionButton continuousBtn;
-    private FloatingActionButton summaryBtn;
     private TextView summaryTv;
     private TextView messageTv;
     private Switch dfuSw;
@@ -68,6 +67,8 @@ public class MainActivity extends AppCompatActivity
     private String serial;
     private final String key = "ciMhPxZXoB_0C7htKpejCw==";
     private ActivatorMicroSummaries summaries;
+
+    private boolean deleting = false;
 
     private BroadcastReceiver broadcastReceiver;
 
@@ -112,6 +113,7 @@ public class MainActivity extends AppCompatActivity
 
     /* ********** One-Off Pull Connection ************/
     private void onSummaryClick(View v) {
+        deleting = false;
         summaries = null;
         getSerial(v);
         setMessage("Scanning for " + serial);
@@ -119,14 +121,23 @@ public class MainActivity extends AppCompatActivity
         timingLogger = new ArrayList<>();
         timingLogger.add(new Pair<>("Connection", System.currentTimeMillis()));
 
+        startScan();
+    }
+
+    private void onDeleteClick(View v) {
+        deleting = true;
+        getSerial(v);
+        setMessage("Scanning for " + serial);
+
+        startScan();
+    }
+
+    private void startScan() {
         //Scan for device based upon serial number and device type
         ScanParameters scanParameters = new ScanParameters();
         scanParameters.deviceFamily = ScanParameters.ACTIVATORMICRO;
         scanParameters.serialList.add(serial);
         palBle.startScan(scanParameters);
-
-        //Directly connect to device with serial number and encryption key
-        //palBle.connect(serial, key);
     }
 
     /*          ScanListener          */
@@ -160,8 +171,13 @@ public class MainActivity extends AppCompatActivity
         }
 
         try {
-            //Start a connection to the device to gather the summary data
-            device.connectForSummary(key);
+            if(!deleting) {
+                //Start a connection to the device to gather the summary data
+                device.connectForSummary(key);
+            } else {
+                //Start a connection to the device to delete all stored data
+                device.connectForDelete(key);
+            }
         } catch (EncryptionException e) {
             setMessageOnUI(e.getMessage());
         }
@@ -238,7 +254,7 @@ public class MainActivity extends AppCompatActivity
                 if (device instanceof PalActivatorMicro) {
                     setMessageOnUI(serial + " starting download");
                     try {
-                        ((PalActivatorMicro) device).connectForDownload();
+                        device.connectForDownload();
                     } catch (EncryptionException e) {
                         e.printStackTrace();
                     }
@@ -314,8 +330,55 @@ public class MainActivity extends AppCompatActivity
 
     @Override
     public void onDfuEnabled(PalDevice device) {
-        Log.i(TAG, "onDfuEnabled: ");
-        device.startDFU(this);
+        setMessageOnUI(device.getSerial() + " DFU enabled");
+        device.startDFU(this, "activator_micro_0_2_0_2.zip");
+    }
+
+    @Override
+    public void onDfuProgress(PalDevice device, int progress) {
+        setMessageOnUI(device.getSerial() + "DFU progress: "
+                + Integer.toString(progress) + "%");
+    }
+
+    @Override
+    public void onDfuCompleted(PalDevice device) {
+        setMessageOnUI(device.getSerial() + " DFU completed");
+    }
+
+    @Override
+    public void onDeleteArmed(PalDevice device) {
+        // Deleting the device memory is a two stage process, first it is armed
+        // using a delete connection, then it is either confirmed or canceled.
+        runOnUiThread(() -> {
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setTitle("Delete All Data?");
+            builder.setMessage("This will delete all data stored upon "
+                    + device.getSerial()
+                    + " , are you sure?");
+
+            builder.setPositiveButton("Delete",
+                    (dialog, which) -> ((PalActivatorMicro) device).delete());
+            builder.setNegativeButton("Cancel",
+                    ((dialog, which) -> ((PalActivatorMicro) device).disarm()));
+
+            AlertDialog dialog = builder.create();
+            dialog.show();
+        });
+    }
+
+    @Override
+    public void onDeleteDisarmed(PalDevice device) {
+        setMessageOnUI(serial + " memory delete disarmed");
+    }
+
+    @Override
+    public void onDeleteStarting(PalDevice device) {
+        setMessageOnUI(serial + " deleting memory...");
+    }
+
+    @Override
+    public void onDeleteFinished(PalDevice device) {
+        setMessageOnUI(serial + " memory deleted");
     }
     /* PalActivatorMicroListener END  */
 
@@ -324,6 +387,7 @@ public class MainActivity extends AppCompatActivity
     
     /* ******** Continuous Push Connection ***********/
     private void onContinuousClick(View v) {
+        deleting = false;
         getSerial(v);
         setMessage("Starting continuous connection to " + serial);
 
@@ -371,11 +435,14 @@ public class MainActivity extends AppCompatActivity
         serialEt = findViewById(R.id.et_micro_serial);
         serialEt.setText(serial);
 
-        continuousBtn = findViewById(R.id.fb_micro_continuous);
-        continuousBtn.setOnClickListener(v -> onContinuousClick(v));
+        FloatingActionButton continuousBtn = findViewById(R.id.fb_micro_continuous);
+        continuousBtn.setOnClickListener(this::onContinuousClick);
 
-        summaryBtn = findViewById(R.id.fb_micro_summary);
-        summaryBtn.setOnClickListener(v -> onSummaryClick(v));
+        FloatingActionButton summaryBtn = findViewById(R.id.fb_micro_summary);
+        summaryBtn.setOnClickListener(this::onSummaryClick);
+
+        FloatingActionButton deleteBtn = findViewById(R.id.fb_micro_delete);
+        deleteBtn.setOnClickListener(this::onDeleteClick);
 
         summaryTv = findViewById(R.id.tv_micro_summary);
 
@@ -389,7 +456,9 @@ public class MainActivity extends AppCompatActivity
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         preferences.edit().putString(lastSerial, serial).apply();
         InputMethodManager inputMethodManager = (InputMethodManager)getSystemService(INPUT_METHOD_SERVICE);
-        inputMethodManager.hideSoftInputFromWindow(v.getApplicationWindowToken(),0);
+        if (inputMethodManager != null) {
+            inputMethodManager.hideSoftInputFromWindow(v.getApplicationWindowToken(),0);
+        }
     }
 
     private void setMessageOnUI(String message) {
@@ -426,23 +495,21 @@ public class MainActivity extends AppCompatActivity
                         new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
                         STORAGE_REQ);
             }
-        } else {
+        } else
             storageAllowed = true;
-        }
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode,
+                                           @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
         switch (requestCode) {
             case STORAGE_REQ: {
-                // If request is cancelled, the result arrays are empty.
                 if (grantResults.length > 0
-                        && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                        && grantResults[0] == PackageManager.PERMISSION_GRANTED)
                     storageAllowed = true;
-                } else {
+                else
                     storageAllowed = true;
-                }
-                return;
             }
         }
     }
@@ -455,14 +522,6 @@ public class MainActivity extends AppCompatActivity
         saveData(serial, temp);
     }
 
-    private void saveData(String serial, List<Byte> data) {
-        Byte temp[] = data.toArray(new Byte[data.size()]);
-        byte bigArray[] = new byte[temp.length];
-        for(int i = 0; i < temp.length; i++)
-            bigArray[i] = temp[i];
-        saveData(serial, bigArray);
-    }
-
     private void saveTiming(int pageCount) {
         if(!storageAllowed)
             return;
@@ -471,14 +530,14 @@ public class MainActivity extends AppCompatActivity
                     new FileOutputStream(getPublicStorageDir("uActivator/timing.log"), true));
             Calendar calendar = Calendar.getInstance();
             calendar.setTimeInMillis(System.currentTimeMillis());
-            SimpleDateFormat format = new SimpleDateFormat("yyyy_MM_dd__HH_mm_ss");
-            String time = "\n\n" + format.format(calendar.getTime()) + "\n";
+            SimpleDateFormat format = new SimpleDateFormat("yyyy_MM_dd__HH_mm_ss", Locale.ENGLISH);
+            StringBuilder time = new StringBuilder("\n\n" + format.format(calendar.getTime()) + "\n");
             Long startTime = timingLogger.get(0).second;
             for(int i = 1; i < timingLogger.size(); i++) {
-                time += "\t" + timingLogger.get(i).first + ": " + Long.toString(timingLogger.get(i).second - startTime) + "\n";
+                time.append("\t").append(timingLogger.get(i).first).append(": ").append(Long.toString(timingLogger.get(i).second - startTime)).append("\n");
             }
-            time += "\tpageCount: " + Integer.toString(pageCount);
-            outputStreamWriter.write(time);
+            time.append("\tpageCount: ").append(Integer.toString(pageCount));
+            outputStreamWriter.write(time.toString());
             outputStreamWriter.close();
         }
         catch (IOException e) {
@@ -494,7 +553,7 @@ public class MainActivity extends AppCompatActivity
                     new FileOutputStream(getPublicStorageDir("uActivator/summary.log"), true));
             Calendar calendar = Calendar.getInstance();
             calendar.setTimeInMillis(System.currentTimeMillis());
-            SimpleDateFormat format = new SimpleDateFormat("yyyy_MM_dd__HH_mm_ss");
+            SimpleDateFormat format = new SimpleDateFormat("yyyy_MM_dd__HH_mm_ss", Locale.ENGLISH);
             String time = "\n\n" + format.format(calendar.getTime()) + "\n";
             time += summary;
             outputStreamWriter.write(time);
@@ -513,7 +572,7 @@ public class MainActivity extends AppCompatActivity
                     new FileOutputStream(getPublicStorageDir("uActivator/battery.log"), true));
             Calendar calendar = Calendar.getInstance();
             calendar.setTimeInMillis(System.currentTimeMillis());
-            SimpleDateFormat format = new SimpleDateFormat("yyyy_MM_dd__HH_mm_ss");
+            SimpleDateFormat format = new SimpleDateFormat("yyyy_MM_dd__HH_mm_ss", Locale.ENGLISH);
             String time = format.format(calendar.getTime()) + ":\t";
             time += battery + "\n";
             outputStreamWriter.write(time);
@@ -530,7 +589,7 @@ public class MainActivity extends AppCompatActivity
         if (isExternalStorageWritable()) {
             Calendar calendar = Calendar.getInstance();
             calendar.setTimeInMillis(System.currentTimeMillis());
-            SimpleDateFormat format = new SimpleDateFormat("yyyy_MM_dd__HH_mm_ss");
+            SimpleDateFormat format = new SimpleDateFormat("yyyy_MM_dd__HH_mm_ss", Locale.ENGLISH);
             String date = format.format(calendar.getTime());
 
             File file = getPublicStorageDir("uActivator/ua_" + serial + "_" + date + ".datx");
@@ -541,11 +600,6 @@ public class MainActivity extends AppCompatActivity
                 fos.write(data);
                 fos.flush();
                 fos.close();
-            } catch (FileNotFoundException e) {
-                e.printStackTrace();
-                this.runOnUiThread(() -> {
-                    Log.w(TAG, "onDownloadFinished: failed to save", e);
-                });
             } catch (IOException e) {
                 e.printStackTrace();
                 this.runOnUiThread(() -> {
@@ -563,10 +617,7 @@ public class MainActivity extends AppCompatActivity
 
     private boolean isExternalStorageWritable() {
         String state = Environment.getExternalStorageState();
-        if (Environment.MEDIA_MOUNTED.equals(state)) {
-            return true;
-        }
-        return false;
+        return Environment.MEDIA_MOUNTED.equals(state);
     }
 
     private File getPublicStorageDir(String fileName) {
@@ -578,9 +629,8 @@ public class MainActivity extends AppCompatActivity
             }
         }
 
-        File path = new File(Environment.getExternalStoragePublicDirectory(
+        return new File(Environment.getExternalStoragePublicDirectory(
                 Environment.DIRECTORY_DOCUMENTS), fileName);
-        return path;
     }
     /*     Data and Log Saving END    */
 }
