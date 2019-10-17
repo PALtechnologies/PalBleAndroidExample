@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="Gradle: com.palt:pal8:0.5.6@aar">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/de44ba2b18429ad11ff22d6172a8ff4e/pal8-0.5.6/jars/classes.jar!/" />
+      <root url="file://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/de44ba2b18429ad11ff22d6172a8ff4e/pal8-0.5.6/res" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>

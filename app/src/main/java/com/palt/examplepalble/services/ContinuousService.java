@@ -20,6 +20,7 @@ import com.palt.examplepalble.R;
 import com.paltechnologies.pal8.devices.PalDevice;
 import com.paltechnologies.pal8.devices.activator_micro.ActivatorMicroService;
 import com.paltechnologies.pal8.devices.activator_micro.PalActivatorMicro;
+import com.paltechnologies.pal8.devices.activator_micro.data.ActivatorMicroContinuousSummaries;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -28,6 +29,7 @@ import java.io.OutputStreamWriter;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
 
 public class ContinuousService extends ActivatorMicroService {
     private static final String TAG = "ContinuousService";
@@ -43,6 +45,7 @@ public class ContinuousService extends ActivatorMicroService {
     public static final String MESSAGE_STEPS =          "com.paltechnologies.activatorrxrt.services.activatormicroservice.MESSAGE_STEPS";
     public static final String EXTRA_STEPS =            "com.paltechnologies.activatorrxrt.services.activatormicroservice.EXTRA_STEPS";
 
+    private ActivatorMicroContinuousSummaries continuousSummaries;
 
     @Override
     public void onCreate() {
@@ -92,10 +95,10 @@ public class ContinuousService extends ActivatorMicroService {
     public void onDisconnected(PalDevice device, String task) {
         Log.i(TAG, "onDisconnected: " + device.getSerial());
 
-        updateNotificationText("Disconnected");
+        updateNotificationMessage("Disconnected");
         sendResult(MESSAGE_DISCONNECTED);
 
-        long[] pattern = {1000, 500, 1000, 500, 1000, 500, 1000, 500, 1000, 500, 1000, 500, 1000, 500,1000, 500 ,1000, 500};
+        long[] pattern = {1000, 500, 1000, 500, 1000, 500, 1000, 500, 1000, 500, 1000, 500, 1000, 500};
         vibrate(pattern);
 
         super.onDisconnected(device, task);
@@ -103,9 +106,9 @@ public class ContinuousService extends ActivatorMicroService {
 
     @Override
     public void onStepEvent(PalActivatorMicro device, int stepCount) {
-        Log.i(TAG, "onStepEvent: " + Integer.toString(stepCount));
+        Log.i(TAG, "onStepEvent: " + stepCount);
 
-        updateNotificationText("Steps: " + Integer.toString(stepCount));
+        updateNotificationMessage("Steps: " + stepCount);
         sendSteps(stepCount);
 
         super.onStepEvent(device, stepCount);
@@ -113,15 +116,18 @@ public class ContinuousService extends ActivatorMicroService {
 
     @Override
     public void onSedentaryAlarm(PalActivatorMicro device) {
-        updateNotificationText("Get up and move!");
+        updateNotificationMessage("Get up and move!");
         long[] pattern = {750, 250, 750, 250, 750, 250, 750, 250, 750, 250, 750, 250};
         vibrate(pattern);
     }
 
-    /* ***** Notification *******/
-    private String title;
-    private String text;
+    @Override
+    public void onSummaryUpdate(PalActivatorMicro device, ActivatorMicroContinuousSummaries summaries) {
+        continuousSummaries = summaries;
+        updateNotificationMessage("Summary update");
+    }
 
+    /* ***** Notification *******/
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel serviceChannel = new NotificationChannel(
@@ -131,44 +137,73 @@ public class ContinuousService extends ActivatorMicroService {
             );
 
             notificationManager = getSystemService(NotificationManager.class);
-            notificationManager.createNotificationChannel(serviceChannel);
+            if (notificationManager != null)
+                notificationManager.createNotificationChannel(serviceChannel);
+            else
+                Log.w(TAG, "createNotificationChannel: Failed to initilise notifications");
         } else {
             notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         }
     }
 
-    private void updateNotification(String title, String text) {
-        notificationManager.notify(1, getNotification(title, text));
+    private void updateNotificationMessage(String message) {
+        String title = "";
+
+        if (continuousSummaries != null) {
+            title += "Steps: " + continuousSummaries.getToday().getStepCount();
+            title += " | " + (continuousSummaries.isUpright() ? "Upright" : "Sedentary") + ": "
+                    + secondsToTime(continuousSummaries.getTimeinBout());
+            title += " | Stepping: " + continuousSummaries.getToday().getSteppingSeconds();
+        } else
+            title = "Waiting...";
+
+        updateNotification(title, message);
     }
 
-    private void updateNotificationTitle(String title) {
-        notificationManager.notify(1, getNotification(title, text));
+    private void updateNotification(String title, String message) {
+        notificationManager.notify(1, getNotification(title, message));
     }
 
-    private void updateNotificationText(String text) {
-        notificationManager.notify(1, getNotification(title, text));
+    private String secondsToTime(int secondsIn) {
+        long hours = TimeUnit.HOURS.convert(secondsIn, TimeUnit.SECONDS);
+        long seconds = secondsIn - TimeUnit.SECONDS.convert(hours, TimeUnit.HOURS);
+        long minutes = TimeUnit.MINUTES.convert(seconds, TimeUnit.SECONDS);
+        seconds -= TimeUnit.SECONDS.convert(minutes, TimeUnit.MINUTES);
+
+        String time = "";
+        if(hours > 0)
+            time += (hours < 10 ? "0" : "") + hours + ":";
+
+        if(minutes > 0)
+            time += (minutes < 10 ? "0" : "") + minutes + ":";
+        else if(hours > 0)
+            time += "00:";
+
+        time += (seconds < 10 ? "0" : "") + seconds;
+
+        return time;
     }
 
-    private Notification getNotification(String title, String text) {
-        this.title = title;
-        this.text = text;
-
+    private Notification getNotification(String title, String message) {
         Intent notificationIntent = new Intent(this, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this,
                 0, notificationIntent, 0);
 
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle(title)
-                .setContentText(text)
+                .setContentText(message)
+                .setContentInfo("Hello?")
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setContentIntent(pendingIntent)
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
                 .build();
     }
 
     @Override
     protected void sendStatusMessage(String message) {
         super.sendStatusMessage(message);
-        updateNotificationText(message);
+        updateNotificationMessage(message);
         saveMessage(message);
         if(message.contains("Battery") || message.contains("Charging"))
             saveBattery(message);
@@ -178,6 +213,7 @@ public class ContinuousService extends ActivatorMicroService {
         vibrate(pattern, -1);
     }
 
+    @SuppressWarnings("SameParameterValue")
     private void vibrate(long[] pattern, int repeat) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             vibrator.vibrate(VibrationEffect.createWaveform(pattern, repeat));

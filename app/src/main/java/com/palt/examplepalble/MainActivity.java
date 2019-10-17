@@ -204,7 +204,7 @@ public class MainActivity extends AppCompatActivity
             summaryString +=
                     "\n\tposture: "
                             + (connectionInfo.isCurrentUpright() ? "upright" : "sedentary")
-                            + " for " + Integer.toString(connectionInfo.getCurrentPostureTime()) + " s";
+                            + " for " + connectionInfo.getCurrentPostureTime() + " s";
             if(connectionInfo.isHibernating())
                 summaryString += "\n\tHibernating";
         }
@@ -221,7 +221,7 @@ public class MainActivity extends AppCompatActivity
 
     @Override
     public void onWakeRetrying(PalDevice device, int attemptsRemaining) {
-        setMessageOnUI(serial + " retrying wake - " + Integer.toString(attemptsRemaining));
+        setMessageOnUI(serial + " retrying wake - " + attemptsRemaining);
     }
 
     @Override
@@ -305,14 +305,14 @@ public class MainActivity extends AppCompatActivity
     @Override
     public void onDownloadStarting(PalDevice device, int pagesToDownload) {
         timingLogger.add(new Pair<>("downloadStarting", System.currentTimeMillis()));
-        setMessageOnUI(serial + " downloading " + Integer.toString(pagesToDownload) + " pages");
+        setMessageOnUI(serial + " downloading " + pagesToDownload + " pages");
     }
 
     @Override
     public void onDownloadProgress(PalDevice device, int pagesDownloaded, int pagesChange) {
         setMessageOnUI(serial + " downloaded: " +
-                Integer.toString(pagesDownloaded) + "/" +
-                Integer.toString(device.getDownloadInfo().getPagesToDownload()) +
+                pagesDownloaded + "/" +
+                device.getDownloadInfo().getPagesToDownload() +
                 " pages");
     }
 
@@ -337,7 +337,7 @@ public class MainActivity extends AppCompatActivity
     @Override
     public void onDfuProgress(PalDevice device, int progress) {
         setMessageOnUI(device.getSerial() + "DFU progress: "
-                + Integer.toString(progress) + "%");
+                + progress + "%");
     }
 
     @Override
@@ -503,22 +503,19 @@ public class MainActivity extends AppCompatActivity
     public void onRequestPermissionsResult(int requestCode,
                                            @NonNull String[] permissions,
                                            @NonNull int[] grantResults) {
-        switch (requestCode) {
-            case STORAGE_REQ: {
-                if (grantResults.length > 0
-                        && grantResults[0] == PackageManager.PERMISSION_GRANTED)
-                    storageAllowed = true;
-                else
-                    storageAllowed = true;
-            }
+        if (requestCode == STORAGE_REQ) {
+            if (grantResults.length > 0
+                    && grantResults[0] == PackageManager.PERMISSION_GRANTED)
+                storageAllowed = true;
+            else
+                storageAllowed = true;
         }
     }
 
     private void saveData(String serial, DownloadInfo download) {
-        byte temp[] = new byte[download.getDownloadSize()];
-        for (int i = 0; i < download.getPageCount(); ++i) {
+        byte[] temp = new byte[download.getDownloadSize()];
+        for (int i = 0; i < download.getPageCount(); ++i)
             System.arraycopy(download.getPage(i), 0, temp, i*256, 256);
-        }
         saveData(serial, temp);
     }
 
@@ -534,9 +531,9 @@ public class MainActivity extends AppCompatActivity
             StringBuilder time = new StringBuilder("\n\n" + format.format(calendar.getTime()) + "\n");
             Long startTime = timingLogger.get(0).second;
             for(int i = 1; i < timingLogger.size(); i++) {
-                time.append("\t").append(timingLogger.get(i).first).append(": ").append(Long.toString(timingLogger.get(i).second - startTime)).append("\n");
+                time.append("\t").append(timingLogger.get(i).first).append(": ").append((timingLogger.get(i).second - startTime)).append("\n");
             }
-            time.append("\tpageCount: ").append(Integer.toString(pageCount));
+            time.append("\tpageCount: ").append(pageCount);
             outputStreamWriter.write(time.toString());
             outputStreamWriter.close();
         }
@@ -554,9 +551,9 @@ public class MainActivity extends AppCompatActivity
             Calendar calendar = Calendar.getInstance();
             calendar.setTimeInMillis(System.currentTimeMillis());
             SimpleDateFormat format = new SimpleDateFormat("yyyy_MM_dd__HH_mm_ss", Locale.ENGLISH);
-            String time = "\n\n" + format.format(calendar.getTime()) + "\n";
-            time += summary;
-            outputStreamWriter.write(time);
+            String string = "\n\n" + format.format(calendar.getTime()) + "\n"
+                    + summary;
+            outputStreamWriter.write(string);
             outputStreamWriter.close();
         }
         catch (IOException e) {
@@ -573,9 +570,9 @@ public class MainActivity extends AppCompatActivity
             Calendar calendar = Calendar.getInstance();
             calendar.setTimeInMillis(System.currentTimeMillis());
             SimpleDateFormat format = new SimpleDateFormat("yyyy_MM_dd__HH_mm_ss", Locale.ENGLISH);
-            String time = format.format(calendar.getTime()) + ":\t";
-            time += battery + "\n";
-            outputStreamWriter.write(time);
+            String string = format.format(calendar.getTime()) + ":\t"
+                    + battery + "\n";
+            outputStreamWriter.write(string);
             outputStreamWriter.close();
         }
         catch (IOException e) {
@@ -595,23 +592,19 @@ public class MainActivity extends AppCompatActivity
             File file = getPublicStorageDir("uActivator/ua_" + serial + "_" + date + ".datx");
 
             try {
-                file.createNewFile();
+                if(file.createNewFile())
+                    Log.i(TAG, "saveData: New file created");
                 FileOutputStream fos = new FileOutputStream(file);
                 fos.write(data);
                 fos.flush();
                 fos.close();
             } catch (IOException e) {
                 e.printStackTrace();
-                this.runOnUiThread(() -> {
-                    Log.w(TAG, "onDownloadFinished: failed to save", e);
-                });
+                Log.w(TAG, "saveData: failed to save", e);
             }
-            Log.i(TAG, "onDownloadCompleted: Download saved");
-            this.runOnUiThread(() -> {
-                Log.i(TAG, "onDownloadFinished: Saved!");
-            });
+            Log.i(TAG, "saveData: Download saved");
         } else {
-            Log.w(TAG, "onDownloadFinished: unable to save");
+            Log.w(TAG, "saveData: Unable to save");
         }
     }
 
@@ -625,7 +618,7 @@ public class MainActivity extends AppCompatActivity
                 Environment.DIRECTORY_DOCUMENTS), "uActivator/");
         if(!dir.exists()) {
             if (!dir.mkdirs()) {
-                Log.e(TAG, "Directory not created");
+                Log.e(TAG, "getPublicStorageDir: Directory not created");
             }
         }
 
