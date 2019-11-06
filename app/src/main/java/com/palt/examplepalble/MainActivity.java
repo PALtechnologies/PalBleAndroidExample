@@ -35,8 +35,10 @@ import com.paltechnologies.pal8.devices.PalDevice;
 import com.paltechnologies.pal8.devices.activator_micro.PalActivatorMicro;
 import com.paltechnologies.pal8.devices.activator_micro.PalActivatorMicroListener;
 import com.paltechnologies.pal8.devices.activator_micro.data.ActivatorMicroConnectionInfo;
+import com.paltechnologies.pal8.devices.activator_micro.data.ActivatorMicroEpochs;
 import com.paltechnologies.pal8.devices.activator_micro.data.ActivatorMicroSummaries;
-import com.paltechnologies.pal8.devices.common.DeviceWake;
+import com.paltechnologies.pal8.devices.activator_micro.data.ActivatorMicroSummary;
+import com.paltechnologies.pal8.devices.common.helpers.Waker;
 import com.paltechnologies.pal8.exceptions.EncryptionException;
 import com.paltechnologies.pal8.exceptions.ListenerException;
 import com.polidea.rxandroidble2.exceptions.BleScanException;
@@ -60,13 +62,13 @@ public class MainActivity extends AppCompatActivity
     private EditText serialEt;
     private TextView summaryTv;
     private TextView messageTv;
+    private Switch downloadSw;
     private Switch dfuSw;
 
     private PalBle palBle;
 
     private String serial;
     private final String key = "ciMhPxZXoB_0C7htKpejCw==";
-    private ActivatorMicroSummaries summaries;
 
     private boolean deleting = false;
 
@@ -81,14 +83,14 @@ public class MainActivity extends AppCompatActivity
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        initiliseUI();
+        initialiseUI();
 
-        //This example app stores data and logging infomation on the device
+        //This example app stores data and logging information on the device
         // at localstorage/documents/uActivator - Therefore storage permissions are required
         requestStoragePermission();
 
         //All this activity to receive messages from the continuous connection service
-        initiliseBroadcastReceiver();
+        initialiseBroadcastReceiver();
 
         //Fetch reference to the single instance of PalBle preserved across the lifetime of the app
         palBle = ExampleApplication.getPalBle(this);
@@ -114,7 +116,6 @@ public class MainActivity extends AppCompatActivity
     /* ********** One-Off Pull Connection ************/
     private void onSummaryClick(View v) {
         deleting = false;
-        summaries = null;
         getSerial(v);
         setMessage("Scanning for " + serial);
 
@@ -173,7 +174,7 @@ public class MainActivity extends AppCompatActivity
         try {
             if(!deleting) {
                 //Start a connection to the device to gather the summary data
-                device.connectForSummary(key);
+                device.connectForSummary(key, true);    //NOTE: ensure you enable hour epochs at connection
             } else {
                 //Start a connection to the device to delete all stored data
                 device.connectForDelete(key);
@@ -185,170 +186,196 @@ public class MainActivity extends AppCompatActivity
 
     /*   PalActivatorMicroListener    */
     @Override
+    public void onConnected(PalDevice device) {
+        timingLogger.add(new Pair<>("onConnected", System.currentTimeMillis()));
+        setMessageOnUI(device.getSerial() + " connected");
+    }
+
+    @Override
+    public void onDisconnected(PalDevice device, String task) {
+        timingLogger.add(new Pair<>("onDisconnected", System.currentTimeMillis()));
+        setMessageOnUI(device.getSerial() + " disconnected");
+    }
+
+    /*          Summary         */
+    @Override
     public void onSummary(PalActivatorMicro device, ActivatorMicroSummaries summaries) {
-        timingLogger.add(new Pair<>("summaryGot", System.currentTimeMillis()));
-        this.summaries = summaries;
-        String summaryString = "Hour\n\tsteps: " + summaries.getHour().getStepCount()
-                + "\n\tlying: " + summaries.getHour().getLyingSeconds()
-                + "\n\tsitting: " + summaries.getHour().getSittingSeconds()
-                + "\n\tupright: " + summaries.getHour().getUprightSeconds()
-                + "\n\tstepping: " + summaries.getHour().getSteppingSeconds()
-                + "\nToday\n\tsteps: " + summaries.getToday().getStepCount()
-                + "\n\tlying: " + summaries.getToday().getLyingSeconds()
-                + "\n\tsitting: " + summaries.getToday().getSittingSeconds()
-                + "\n\tupright: " + summaries.getToday().getUprightSeconds()
-                + "\n\tstepping: " + summaries.getToday().getSteppingSeconds()
-                + "\n\tbattery: " + device.getConnectionInfo().getCurrentBattery();
+        timingLogger.add(new Pair<>("onSummary", System.currentTimeMillis()));
+
+        String summaryString = device.getSerial() + " Hour\nsteps: " + summaries.getHour().getStepCount()
+                + "\nlying: " + summaries.getHour().getLyingSeconds()
+                + "\nsitting: " + summaries.getHour().getSittingSeconds()
+                + "\nupright: " + summaries.getHour().getUprightSeconds()
+                + "\nstepping: " + summaries.getHour().getSteppingSeconds()
+                + "\nToday\nsteps: " + summaries.getToday().getStepCount()
+                + "\nlying: " + summaries.getToday().getLyingSeconds()
+                + "\nsitting: " + summaries.getToday().getSittingSeconds()
+                + "\nupright: " + summaries.getToday().getUprightSeconds()
+                + "\nstepping: " + summaries.getToday().getSteppingSeconds()
+                + "\nbattery: " + device.getConnectionInfo().getCurrentBattery();
         if (device.getConnectionInfo() instanceof ActivatorMicroConnectionInfo) {
             ActivatorMicroConnectionInfo connectionInfo = (ActivatorMicroConnectionInfo) device.getConnectionInfo();
             summaryString +=
-                    "\n\tposture: "
+                    "\nposture: "
                             + (connectionInfo.isCurrentUpright() ? "upright" : "sedentary")
                             + " for " + connectionInfo.getCurrentPostureTime() + " s";
             if(connectionInfo.isHibernating())
-                summaryString += "\n\tHibernating";
+                summaryString += "\nHibernating";
         }
         setSummaryOnUI(device.getSerial() + " Summaries\n" + summaryString);
         saveSummary(summaryString);
         saveBattery(Integer.toString(device.getConnectionInfo().getCurrentBattery()));
     }
-    
+
     @Override
-    public void onWakeCompleted(PalDevice device) {
-        timingLogger.add(new Pair<>("woken", System.currentTimeMillis()));
-        setMessageOnUI(serial + " woken");
+    public void onSummaryEpochs(PalActivatorMicro device, ActivatorMicroEpochs epochs) {
+        timingLogger.add(new Pair<>("onSummaryEpochs", System.currentTimeMillis()));
+
+        ActivatorMicroSummary summary = epochs.getSummary(5);
+        String summaryString = device.getSerial() + " Epochs\nLast 5 Minutes"
+                + "\nsteps: " + summary.getStepCount()
+                + "\nlying: " + summary.getLyingSeconds()
+                + "\nsitting: " + summary.getSittingSeconds()
+                + "\nupright: " + summary.getUprightSeconds()
+                + "\nstepping: " + summary.getSteppingSeconds();
+
+        summary = epochs.getSummary(5, 10);
+        summaryString += "\n\nBetween 5-10 Minutes"
+                + "\nsteps: " + summary.getStepCount()
+                + "\nlying: " + summary.getLyingSeconds()
+                + "\nsitting: " + summary.getSittingSeconds()
+                + "\nupright: " + summary.getUprightSeconds()
+                + "\nstepping: " + summary.getSteppingSeconds();
+
+        setSummaryOnUI(summaryString);
     }
 
     @Override
-    public void onWakeRetrying(PalDevice device, int attemptsRemaining) {
-        setMessageOnUI(serial + " retrying wake - " + attemptsRemaining);
-    }
+    public void onSummaryCompleted(PalActivatorMicro device) {
+        timingLogger.add(new Pair<>("onSummaryCompleted", System.currentTimeMillis()));
 
-    @Override
-    public void onWakeStatus(PalDevice device, DeviceWake.WakeStatus status) {
-        setMessageOnUI(serial + " wake status - " + DeviceWake.statusToString(status));
-    }
-
-    @Override
-    public void onWakeFailed(PalDevice device, String explanation) {
-        setMessageOnUI(serial + " wake failed - " + explanation);
-    }
-
-    @Override
-    public void onWakeError(PalDevice device, Throwable throwable) {
-        setMessageOnUI(serial + " wake error - " + throwable.getMessage());
-    }
-
-    @Override
-    public void onConnected(PalDevice device) {
-        timingLogger.add(new Pair<>("connected", System.currentTimeMillis()));
-        setMessageOnUI(serial + " connected");
-    }
-
-    @Override
-    public void onDisconnected(PalDevice device, String task) {
-        if(task.equalsIgnoreCase(PalActivatorMicro.P8C_TASK_SUMMARY)) {
-            timingLogger.add(new Pair<>("summaryDisconnected", System.currentTimeMillis()));
-            setMessageOnUI(serial + " disconnected - Summary");
-            if (summaries != null) {
-                if (device instanceof PalActivatorMicro) {
-                    setMessageOnUI(serial + " starting download");
-                    try {
-                        device.connectForDownload();
-                    } catch (EncryptionException e) {
-                        e.printStackTrace();
-                    }
-                }
+        if(downloadSw.isChecked()) {
+            setMessageOnUI(device.getSerial() + " starting download");
+            try {
+                device.connectForDownload();
+            } catch (EncryptionException e) {
+                Log.w(TAG, "onSummaryCompleted: ", e);
+                setMessageOnUI(device.getSerial() + " Encryption failed while downloading");
             }
-        } else if(task.equalsIgnoreCase(PalActivatorMicro.P8C_TASK_DOWNLOAD)) {
-            timingLogger.add(new Pair<>("downloadDisconnected", System.currentTimeMillis()));
-            saveTiming(device.getDownloadInfo().getPageCount());
-
-            if(dfuSw.isChecked())
-                device.enableDFU();
+        } else if(dfuSw.isChecked()) {
+            setMessageOnUI(device.getSerial() + " starting DFU");
+            device.enableDFU(getApplicationContext(), "/uActivator/fw/activator_micro_0_3_0_3.zip");
         } else {
-            setMessageOnUI(serial + " disconnected - " + task);
+            setMessageOnUI(device.getSerial() + " disconnected");
+            saveTiming(0);
         }
     }
 
     @Override
-    public void onRetrying(PalDevice device, String task, int triesRemaining) {
-        setMessageOnUI(serial + " retrying - " + task + " (" + triesRemaining + ")");
+    public void onSummaryRetry(PalActivatorMicro device, int attemptsRemaining) {
+        setMessageOnUI(device.getSerial()
+                + " summary fetch failed - retry(" + attemptsRemaining + ")");
     }
 
     @Override
-    public void onFailed(PalDevice device, String task, String explanation) {
-        setMessageOnUI(serial + " failed - " + task + "\n" + explanation);
+    public void onSummaryFailed(PalActivatorMicro device, Throwable throwable) {
+        Log.w(TAG, "onSummaryFailed: ", throwable);
+        setMessageOnUI(device.getSerial() + " - " + throwable.getMessage());
+    }
+    /*        Summary END       */
+
+    /*           Wake           */
+    @Override
+    public void onWakeStatus(PalDevice device, Waker.WakeStatus wakeStatus) {
+        setMessageOnUI(device.getSerial() + " wake status - " + wakeStatus.toString());
     }
 
     @Override
-    public void onDeviceError(PalDevice device, String task, Throwable throwable) {
-        setMessageOnUI(serial + " error - " + task + "\n" + throwable.getMessage());
+    public void onWakeCompleted(PalDevice device) {
+        timingLogger.add(new Pair<>("woken", System.currentTimeMillis()));
+        setMessageOnUI(device.getSerial() + " woken");
     }
 
+    @Override
+    public void onWakeRetry(PalDevice device, int attemptsRemaining) {
+        setMessageOnUI(device.getSerial() + " retrying wake - " + attemptsRemaining);
+    }
+
+    @Override
+    public void onWakeFailed(PalDevice device, Throwable throwable) {
+        setMessageOnUI(device.getSerial() + " wake error - " + throwable.getMessage());
+    }
+    /*         Wake END         */
+
+    /*        Encryption        */
     @Override
     public void onEncrypted(PalDevice device, String key) {
         timingLogger.add(new Pair<>("encrypted", System.currentTimeMillis()));
-        setMessageOnUI(serial + " encrypted\n" + key);
+        setMessageOnUI(device.getSerial() + " encrypted\n" + key);
     }
 
     @Override
     public void onEncryptionKeyNeeded(PalDevice device, PalDevice.KeyType keyType) {
-        setMessageOnUI(serial + " encryption key needed - " + keyType.toString());
+        setMessageOnUI(device.getSerial() + " encryption key needed - " + keyType.toString());
     }
 
     @Override
     public void onInvalidEncryptionKey(PalDevice device) {
-        setMessageOnUI(serial + " invalid key");
+        setMessageOnUI(device.getSerial() + " invalid key");
     }
+    /*      Encryption END      */
 
+    /*         Download         */
     @Override
     public void onDownloadStarting(PalDevice device, int pagesToDownload) {
         timingLogger.add(new Pair<>("downloadStarting", System.currentTimeMillis()));
-        setMessageOnUI(serial + " downloading " + pagesToDownload + " pages");
+        setMessageOnUI(device.getSerial() + " downloading " + pagesToDownload + " pages");
     }
 
     @Override
     public void onDownloadProgress(PalDevice device, int pagesDownloaded, int pagesChange) {
-        setMessageOnUI(serial + " downloaded: " +
+        setMessageOnUI(device.getSerial() + " downloaded: " +
                 pagesDownloaded + "/" +
                 device.getDownloadInfo().getPagesToDownload() +
                 " pages");
     }
 
+
     @Override
-    public void onDownloadFinished(PalDevice device, DownloadInfo downloadInfo) {
+    public void onDownloadNewPageAvailable(PalDevice device, int page) {
+
+    }
+
+    @Override
+    public void onDownloadCompleted(PalDevice device, DownloadInfo downloadInfo) {
         timingLogger.add(new Pair<>("downloadFinished", System.currentTimeMillis()));
         try {
-            setMessageOnUI(serial + " finished downloading" +
+            setMessageOnUI(device.getSerial() + " finished downloading" +
                     "\n" + PalHelper.toHexString(downloadInfo.getPage(0)));
             saveData(device.getSerial(), downloadInfo);
         } catch (IndexOutOfBoundsException e) {
-            setMessageOnUI(serial + " No pages available");
+            setMessageOnUI(device.getSerial() + " No pages available");
+        }
+
+        if (dfuSw.isChecked()) {
+            setMessageOnUI(device.getSerial() + " starting DFU");
+            device.enableDFU(getApplicationContext(), "/uActivator/fw/activator_micro_0_3_0_3.zip");
+        } else {
+            setMessageOnUI(device.getSerial() + " Download completed");
+            saveTiming(downloadInfo.getPageCount());
         }
     }
 
     @Override
-    public void onDfuEnabled(PalDevice device) {
-        setMessageOnUI(device.getSerial() + " DFU enabled");
-        device.startDFU(this, "activator_micro_0_2_0_2.zip");
+    public void onDownloadFailed(PalDevice device, Throwable throwable) {
+        Log.w(TAG, "onDownloadFailed: ", throwable);
+        setMessageOnUI(device.getSerial() + " - " + throwable.getMessage());
     }
+    /*       Download END       */
 
-    @Override
-    public void onDfuProgress(PalDevice device, int progress) {
-        setMessageOnUI(device.getSerial() + "DFU progress: "
-                + progress + "%");
-    }
-
-    @Override
-    public void onDfuCompleted(PalDevice device) {
-        setMessageOnUI(device.getSerial() + " DFU completed");
-    }
-
+    /*          Delete          */
     @Override
     public void onDeleteArmed(PalDevice device) {
-        // Deleting the device memory is a two stage process, first it is armed
-        // using a delete connection, then it is either confirmed or canceled.
         runOnUiThread(() -> {
             AlertDialog.Builder builder = new AlertDialog.Builder(this);
             builder.setTitle("Delete All Data?");
@@ -357,9 +384,9 @@ public class MainActivity extends AppCompatActivity
                     + " , are you sure?");
 
             builder.setPositiveButton("Delete",
-                    (dialog, which) -> ((PalActivatorMicro) device).delete());
+                    (dialog, which) -> device.delete());
             builder.setNegativeButton("Cancel",
-                    ((dialog, which) -> ((PalActivatorMicro) device).disarm()));
+                    ((dialog, which) -> device.disarm()));
 
             AlertDialog dialog = builder.create();
             dialog.show();
@@ -368,18 +395,61 @@ public class MainActivity extends AppCompatActivity
 
     @Override
     public void onDeleteDisarmed(PalDevice device) {
-        setMessageOnUI(serial + " memory delete disarmed");
+        setMessageOnUI(device.getSerial() + " memory delete disarmed");
     }
 
     @Override
     public void onDeleteStarting(PalDevice device) {
-        setMessageOnUI(serial + " deleting memory...");
+        setMessageOnUI(device.getSerial() + " deleting memory...");
     }
 
     @Override
-    public void onDeleteFinished(PalDevice device) {
-        setMessageOnUI(serial + " memory deleted");
+    public void onDeleteCompleted(PalDevice device) {
+        setMessageOnUI(device.getSerial() + " memory deleted");
     }
+
+    @Override
+    public void onDeleteFailed(PalDevice device, Throwable throwable) {
+        Log.w(TAG, "onDeleteFailed: ", throwable);
+        setMessageOnUI(device.getSerial() + " - " + throwable.getMessage());
+    }
+    /*        Delete END        */
+
+    /*            DFU           */
+    @Override
+    public void onDfuProgress(PalDevice device, int percent, float avgSpeed) {
+        setMessageOnUI(device.getSerial() + " DFU Progress: " + percent + "%");
+    }
+
+    @Override
+    public void onDfuCompleted(PalDevice device) {
+        setMessageOnUI(device.getSerial() + " DFU Completed");
+        saveTiming(0);
+    }
+
+    @Override
+    public void onDfuError(PalDevice device, Throwable throwable) {
+        Log.w(TAG, "onDfuError: ", throwable);
+        setMessageOnUI(device.getSerial() + " - " + throwable.getMessage());
+    }
+    /*          DFU END         */
+
+    /*          General         */
+    @Override
+    public void onRetry(PalDevice device, int attemptsRemaining, String description) {
+        setMessageOnUI(device.getSerial() + " retrying - " + description + " (" + attemptsRemaining + ")");
+    }
+
+    @Override
+    public void onError(PalDevice device, Throwable throwable, String description) {
+        setMessageOnUI(device.getSerial() + " failed - " + description + "\n" + throwable.getMessage());
+    }
+
+    @Override
+    public void onFailed(PalDevice device, Throwable throwable, String description) {
+        setMessageOnUI(device.getSerial() + " error - " + description + "\n" + throwable.getMessage());
+    }
+    /*        General END       */
     /* PalActivatorMicroListener END  */
 
     /* ******** One-Off Pull Connection END **********/
@@ -404,7 +474,7 @@ public class MainActivity extends AppCompatActivity
         ContextCompat.startForegroundService(this, serviceIntent);
     }
 
-    private void initiliseBroadcastReceiver() {
+    private void initialiseBroadcastReceiver() {
         broadcastReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -429,7 +499,7 @@ public class MainActivity extends AppCompatActivity
 
 
     /*         UI Interaction         */
-    private void initiliseUI() {
+    private void initialiseUI() {
         SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(this);
         serial = preferences.getString(lastSerial, "982100");
         serialEt = findViewById(R.id.et_micro_serial);
@@ -448,6 +518,7 @@ public class MainActivity extends AppCompatActivity
 
         messageTv = findViewById(R.id.tv_micro_message);
 
+        downloadSw = findViewById(R.id.sw_micro_download);
         dfuSw = findViewById(R.id.sw_micro_dfu);
     }
 
@@ -513,10 +584,11 @@ public class MainActivity extends AppCompatActivity
     }
 
     private void saveData(String serial, DownloadInfo download) {
-        byte[] temp = new byte[download.getDownloadSize()];
-        for (int i = 0; i < download.getPageCount(); ++i)
-            System.arraycopy(download.getPage(i), 0, temp, i*256, 256);
-        saveData(serial, temp);
+        try {
+            saveData(serial, download.getDatx());
+        } catch (Throwable throwable) {
+            throwable.printStackTrace();
+        }
     }
 
     private void saveTiming(int pageCount) {

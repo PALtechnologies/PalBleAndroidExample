@@ -4,10 +4,10 @@ android {
     compileSdkVersion 28
     defaultConfig {
         applicationId "com.palt.examplepalble"
-        minSdkVersion 23
+        minSdkVersion 19
         targetSdkVersion 28
-        versionCode 5
-        versionName "0.2.3"
+        versionCode 6
+        versionName "0.2.4"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
@@ -34,5 +34,5 @@ dependencies {
     implementation 'com.google.android.material:material:1.0.0'
 
     //Add current library
-    api 'com.palt:pal8:0.5.6'
+    api 'com.palt:pal8:0.5.9'
 }

@@ -10,8 +10,10 @@ import android.os.Build;
 import android.os.Environment;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
+
 import androidx.core.app.NotificationCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+
 import android.util.Log;
 
 import com.palt.examplepalble.ExampleApplication;
@@ -38,12 +40,12 @@ public class ContinuousService extends ActivatorMicroService {
     private Vibrator vibrator;
 
     private LocalBroadcastManager localBroadcastManager;
-    public static final String SERVICE_RESULT =         "com.paltechnologies.activatorrxrt.services.activatormicroservice.RESULT";
-    public static final String SERVICE_MESSAGE =        "com.paltechnologies.activatorrxrt.services.activatormicroservice.MESSAGE";
-    public static final String MESSAGE_CONNECTED =      "com.paltechnologies.activatorrxrt.services.activatormicroservice.MESSAGE_CONNECTED";
-    public static final String MESSAGE_DISCONNECTED =   "com.paltechnologies.activatorrxrt.services.activatormicroservice.MESSAGE_DISCONNECTED";
-    public static final String MESSAGE_STEPS =          "com.paltechnologies.activatorrxrt.services.activatormicroservice.MESSAGE_STEPS";
-    public static final String EXTRA_STEPS =            "com.paltechnologies.activatorrxrt.services.activatormicroservice.EXTRA_STEPS";
+    public static final String SERVICE_RESULT = "com.paltechnologies.activatorrxrt.services.activatormicroservice.RESULT";
+    public static final String SERVICE_MESSAGE = "com.paltechnologies.activatorrxrt.services.activatormicroservice.MESSAGE";
+    public static final String MESSAGE_CONNECTED = "com.paltechnologies.activatorrxrt.services.activatormicroservice.MESSAGE_CONNECTED";
+    public static final String MESSAGE_DISCONNECTED = "com.paltechnologies.activatorrxrt.services.activatormicroservice.MESSAGE_DISCONNECTED";
+    public static final String MESSAGE_STEPS = "com.paltechnologies.activatorrxrt.services.activatormicroservice.MESSAGE_STEPS";
+    public static final String EXTRA_STEPS = "com.paltechnologies.activatorrxrt.services.activatormicroservice.EXTRA_STEPS";
 
     private ActivatorMicroContinuousSummaries continuousSummaries;
 
@@ -60,11 +62,11 @@ public class ContinuousService extends ActivatorMicroService {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.i(TAG, "Starting");
+        Log.i(TAG, "onStartCommand");
 
         /* A foreground service is used to prevent (significantly reduce the chance of)
         Android shutting for the service and closing the connection. The foreground service
-        provides a perminate notification box that lets the user know the service is running
+        provides a persistent notification box that lets the user know the service is running
         and may also be used for prompts and communication.
 
         This example application response to every event with a notification message and
@@ -80,6 +82,8 @@ public class ContinuousService extends ActivatorMicroService {
         return super.onStartCommand(intent, flags, startId);
     }
 
+    /* PalActivatorMicroEventListener */
+    /*   PalActivatorMicroListener    */
     @Override
     public void onConnected(PalDevice device) {
         Log.i(TAG, "onConnected: " + device.getSerial());
@@ -103,6 +107,7 @@ public class ContinuousService extends ActivatorMicroService {
 
         super.onDisconnected(device, task);
     }
+    /* PalActivatorMicroListener END  */
 
     @Override
     public void onStepEvent(PalActivatorMicro device, int stepCount) {
@@ -126,8 +131,9 @@ public class ContinuousService extends ActivatorMicroService {
         continuousSummaries = summaries;
         updateNotificationMessage("Summary update");
     }
+    /* PalActivatorMicroEventListener END */
 
-    /* ***** Notification *******/
+    /*            Notification            */
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel serviceChannel = new NotificationChannel(
@@ -140,7 +146,7 @@ public class ContinuousService extends ActivatorMicroService {
             if (notificationManager != null)
                 notificationManager.createNotificationChannel(serviceChannel);
             else
-                Log.w(TAG, "createNotificationChannel: Failed to initilise notifications");
+                Log.w(TAG, "createNotificationChannel: Failed to initialise notifications");
         } else {
             notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         }
@@ -152,7 +158,7 @@ public class ContinuousService extends ActivatorMicroService {
         if (continuousSummaries != null) {
             title += "Steps: " + continuousSummaries.getToday().getStepCount();
             title += " | " + (continuousSummaries.isUpright() ? "Upright" : "Sedentary") + ": "
-                    + secondsToTime(continuousSummaries.getTimeinBout());
+                    + secondsToTime(continuousSummaries.getTimeInBout());
             title += " | Stepping: " + continuousSummaries.getToday().getSteppingSeconds();
         } else
             title = "Waiting...";
@@ -171,12 +177,12 @@ public class ContinuousService extends ActivatorMicroService {
         seconds -= TimeUnit.SECONDS.convert(minutes, TimeUnit.MINUTES);
 
         String time = "";
-        if(hours > 0)
+        if (hours > 0)
             time += (hours < 10 ? "0" : "") + hours + ":";
 
-        if(minutes > 0)
+        if (minutes > 0)
             time += (minutes < 10 ? "0" : "") + minutes + ":";
-        else if(hours > 0)
+        else if (hours > 0)
             time += "00:";
 
         time += (seconds < 10 ? "0" : "") + seconds;
@@ -205,10 +211,12 @@ public class ContinuousService extends ActivatorMicroService {
         super.sendStatusMessage(message);
         updateNotificationMessage(message);
         saveMessage(message);
-        if(message.contains("Battery") || message.contains("Charging"))
+        if (message.contains("Battery") || message.contains("Charging"))
             saveBattery(message);
     }
+    /*          Notification END          */
 
+    /*              Vibration             */
     private void vibrate(long[] pattern) {
         vibrate(pattern, -1);
     }
@@ -220,12 +228,12 @@ public class ContinuousService extends ActivatorMicroService {
         else
             vibrator.vibrate(pattern, -1);
     }
-    /* *** Notification END *****/
+    /*            Vibration END           */
 
-    /* ******* Broadcast ********/
+    /*             Broadcast              */
     private void sendResult(String message) {
         Intent intent = new Intent(SERVICE_RESULT);
-        if(message != null)
+        if (message != null)
             intent.putExtra(SERVICE_MESSAGE, message);
         localBroadcastManager.sendBroadcast(intent);
     }
@@ -236,9 +244,9 @@ public class ContinuousService extends ActivatorMicroService {
         intent.putExtra(EXTRA_STEPS, stepCount);
         localBroadcastManager.sendBroadcast(intent);
     }
-    /* ***** Broadcast END ******/
+    /*           Broadcast END            */
 
-    /* ****** Data Saving *******/
+    /*               Saving               */
     private void saveMessage(String message) {
         try {
             OutputStreamWriter outputStreamWriter = new OutputStreamWriter(
@@ -250,8 +258,7 @@ public class ContinuousService extends ActivatorMicroService {
             time += message + "\n";
             outputStreamWriter.write(time);
             outputStreamWriter.close();
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             Log.e("Exception", "File write failed: " + e.toString());
         }
     }
@@ -267,8 +274,7 @@ public class ContinuousService extends ActivatorMicroService {
             time += battery + "\n";
             outputStreamWriter.write(time);
             outputStreamWriter.close();
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             Log.e("Exception", "File write failed: " + e.toString());
         }
     }
@@ -276,7 +282,7 @@ public class ContinuousService extends ActivatorMicroService {
     private File getPublicStorageDir(String fileName) {
         File dir = new File(Environment.getExternalStoragePublicDirectory(
                 Environment.DIRECTORY_DOCUMENTS), "uActivator/");
-        if(!dir.exists()) {
+        if (!dir.exists()) {
             if (!dir.mkdirs()) {
                 Log.e(TAG, "Directory not created");
             }
@@ -285,5 +291,5 @@ public class ContinuousService extends ActivatorMicroService {
         return new File(Environment.getExternalStoragePublicDirectory(
                 Environment.DIRECTORY_DOCUMENTS), fileName);
     }
-    /* **** Data Saving END *****/
+    /*             Saving END             */
 }
