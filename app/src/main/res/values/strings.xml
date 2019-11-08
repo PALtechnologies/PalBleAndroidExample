@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">ExamplePalBle</string>
+    <string name="ready">Ready</string>
+    <string name="dfu">DFU</string>
+    <string name="download">Download</string>
+    <string name="serial">Serial</string>
 </resources>

@@ -26,9 +26,9 @@ import android.widget.Switch;
 import android.widget.TextView;
 
 import com.palt.examplepalble.services.ContinuousService;
-import com.paltechnologies.pal8.PalBle;
+import com.paltechnologies.pal8.PalBle.PalBle;
+import com.paltechnologies.pal8.PalBle.PalScanListener;
 import com.paltechnologies.pal8.PalHelper;
-import com.paltechnologies.pal8.ScanListener;
 import com.paltechnologies.pal8.ScanParameters;
 import com.paltechnologies.pal8.devices.DownloadInfo;
 import com.paltechnologies.pal8.devices.PalDevice;
@@ -41,7 +41,6 @@ import com.paltechnologies.pal8.devices.activator_micro.data.ActivatorMicroSumma
 import com.paltechnologies.pal8.devices.common.helpers.Waker;
 import com.paltechnologies.pal8.exceptions.EncryptionException;
 import com.paltechnologies.pal8.exceptions.ListenerException;
-import com.polidea.rxandroidble2.exceptions.BleScanException;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -53,22 +52,24 @@ import java.util.Calendar;
 import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity
-        implements ScanListener, PalActivatorMicroListener {
+        implements PalScanListener, PalActivatorMicroListener {
     private final String TAG = "MainActivity";
 
-    private static final int STORAGE_REQ = 1;
     private static final String lastSerial = "com.palt.examplepalble.LAST_NEW_SERIAL";
+    private static final int PERMISSIONS_REQUEST_WRITE = 43;
+
+    private String serial;
+    private final String key = "ciMhPxZXoB_0C7htKpejCw==";
 
     private EditText serialEt;
     private TextView summaryTv;
+    private TextView epochTv;
+    private TextView downloadTv;
     private TextView messageTv;
     private Switch downloadSw;
     private Switch dfuSw;
 
     private PalBle palBle;
-
-    private String serial;
-    private final String key = "ciMhPxZXoB_0C7htKpejCw==";
 
     private boolean deleting = false;
 
@@ -112,6 +113,27 @@ public class MainActivity extends AppCompatActivity
         super.onStop();
     }
 
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+                                           @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        if (requestCode == PERMISSIONS_REQUEST_WRITE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED)
+                storageAllowed = true;
+            else
+                setMessageOnUI("Write permissions are required to save logs and data");
+        } else {
+            //Required to allow library to handle BLE permissions
+            palBle.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        }
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        //Required to allow library to handle BLE activation
+        palBle.onActivityResult(requestCode, resultCode, data);
+    }
 
     /* ********** One-Off Pull Connection ************/
     private void onSummaryClick(View v) {
@@ -141,7 +163,7 @@ public class MainActivity extends AppCompatActivity
         palBle.startScan(scanParameters);
     }
 
-    /*          ScanListener          */
+    /*        PalScanListener         */
     @Override
     public void onScanResultsChanged(PalDevice device) {
         if (device instanceof PalActivatorMicro) {
@@ -158,8 +180,8 @@ public class MainActivity extends AppCompatActivity
     }
 
     @Override
-    public void onScanError(BleScanException scanException) {
-        setMessageOnUI(scanException.getMessage());
+    public void onScanError(Throwable throwable) {
+        setMessageOnUI(throwable.getMessage());
     }
     /*        ScanListener END        */
 
@@ -232,7 +254,7 @@ public class MainActivity extends AppCompatActivity
         timingLogger.add(new Pair<>("onSummaryEpochs", System.currentTimeMillis()));
 
         ActivatorMicroSummary summary = epochs.getSummary(5);
-        String summaryString = device.getSerial() + " Epochs\nLast 5 Minutes"
+        String epochString = device.getSerial() + " Epochs\nLast 5 Minutes"
                 + "\nsteps: " + summary.getStepCount()
                 + "\nlying: " + summary.getLyingSeconds()
                 + "\nsitting: " + summary.getSittingSeconds()
@@ -240,14 +262,14 @@ public class MainActivity extends AppCompatActivity
                 + "\nstepping: " + summary.getSteppingSeconds();
 
         summary = epochs.getSummary(5, 10);
-        summaryString += "\n\nBetween 5-10 Minutes"
+        epochString += "\n\nBetween 5-10 Minutes"
                 + "\nsteps: " + summary.getStepCount()
                 + "\nlying: " + summary.getLyingSeconds()
                 + "\nsitting: " + summary.getSittingSeconds()
                 + "\nupright: " + summary.getUprightSeconds()
                 + "\nstepping: " + summary.getSteppingSeconds();
 
-        setSummaryOnUI(summaryString);
+        setEpochOnUI(epochString);
     }
 
     @Override
@@ -350,8 +372,10 @@ public class MainActivity extends AppCompatActivity
     public void onDownloadCompleted(PalDevice device, DownloadInfo downloadInfo) {
         timingLogger.add(new Pair<>("downloadFinished", System.currentTimeMillis()));
         try {
-            setMessageOnUI(device.getSerial() + " finished downloading" +
-                    "\n" + PalHelper.toHexString(downloadInfo.getPage(0)));
+            setMessageOnUI(serial + " download completed");
+            String downloadString = PalHelper.toHexString(
+                    downloadInfo.getPage(downloadInfo.getPageCount()-1)).substring(5);
+            setDownloadOnUI(downloadString);
             saveData(device.getSerial(), downloadInfo);
         } catch (IndexOutOfBoundsException e) {
             setMessageOnUI(device.getSerial() + " No pages available");
@@ -515,7 +539,8 @@ public class MainActivity extends AppCompatActivity
         deleteBtn.setOnClickListener(this::onDeleteClick);
 
         summaryTv = findViewById(R.id.tv_micro_summary);
-
+        epochTv = findViewById(R.id.tv_micro_epoch);
+        downloadTv = findViewById(R.id.tv_micro_download);
         messageTv = findViewById(R.id.tv_micro_message);
 
         downloadSw = findViewById(R.id.sw_micro_download);
@@ -549,6 +574,24 @@ public class MainActivity extends AppCompatActivity
         Log.i(TAG, "setSummary: " + message);
         summaryTv.setText(message);
     }
+
+    private void setEpochOnUI(String message) {
+        runOnUiThread(() -> setEpoch(message));
+    }
+
+    private void setEpoch(String message) {
+        Log.i(TAG, "setSummary: " + message);
+        epochTv.setText(message);
+    }
+
+    private void setDownloadOnUI(String message) {
+        runOnUiThread(() -> setDownload(message));
+    }
+
+    private void setDownload(String message) {
+        Log.i(TAG, "setSummary: " + message);
+        downloadTv.setText(message);
+    }
     /*       UI Interaction END       */
 
 
@@ -564,23 +607,10 @@ public class MainActivity extends AppCompatActivity
             } else {
                 ActivityCompat.requestPermissions(this,
                         new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
-                        STORAGE_REQ);
+                        PERMISSIONS_REQUEST_WRITE);
             }
         } else
             storageAllowed = true;
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode,
-                                           @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
-        if (requestCode == STORAGE_REQ) {
-            if (grantResults.length > 0
-                    && grantResults[0] == PackageManager.PERMISSION_GRANTED)
-                storageAllowed = true;
-            else
-                storageAllowed = true;
-        }
     }
 
     private void saveData(String serial, DownloadInfo download) {
