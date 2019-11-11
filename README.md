@@ -1,4 +1,4 @@
-# PalBleAndroidExample [ ![Download](https://api.bintray.com/packages/pal/maven/PalBleAndroid/images/download.svg?version=0.5.11) ](https://bintray.com/pal/maven/PalBleAndroid/0.5.10/link)
+# PalBleAndroidExample [ ![Download](https://api.bintray.com/packages/pal/maven/PalBleAndroid/images/download.svg?version=0.5.11) ](https://bintray.com/pal/maven/PalBleAndroid/0.5.11/link)
 This is a basic example application that utilises the PalBleAndroid library to connect to Activator Micro devices and display the summary information.
 ## Connection Modes
 The application demonstrates two modes of operation for the Activator Micro.
