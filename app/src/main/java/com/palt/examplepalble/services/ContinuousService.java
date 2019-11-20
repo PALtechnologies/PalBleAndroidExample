@@ -20,7 +20,7 @@ import com.palt.examplepalble.ExampleApplication;
 import com.palt.examplepalble.MainActivity;
 import com.palt.examplepalble.R;
 import com.paltechnologies.pal8.devices.PalDevice;
-import com.paltechnologies.pal8.devices.activator_micro.ActivatorMicroService;
+import com.paltechnologies.pal8.devices.activator_micro.PalActivatorMicroService;
 import com.paltechnologies.pal8.devices.activator_micro.PalActivatorMicro;
 import com.paltechnologies.pal8.devices.activator_micro.data.ActivatorMicroContinuousSummaries;
 
@@ -33,7 +33,7 @@ import java.util.Calendar;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
-public class ContinuousService extends ActivatorMicroService {
+public class ContinuousService extends PalActivatorMicroService {
     private static final String TAG = "ContinuousService";
 
     private NotificationManager notificationManager;

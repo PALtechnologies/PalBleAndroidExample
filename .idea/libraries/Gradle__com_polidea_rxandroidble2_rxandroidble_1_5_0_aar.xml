@@ -1,11 +1,11 @@
 <component name="libraryTable">
   <library name="Gradle: com.polidea.rxandroidble2:rxandroidble:1.5.0@aar">
     <ANNOTATIONS>
-      <root url="jar://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/73b13f3b3f9e03b4b1e8c1afe41a289a/jetified-rxandroidble-1.5.0/annotations.zip!/" />
+      <root url="jar://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/8fa8cb2cd9ee27eb612bcde65f9212f5/jetified-rxandroidble-1.5.0/annotations.zip!/" />
     </ANNOTATIONS>
     <CLASSES>
-      <root url="jar://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/73b13f3b3f9e03b4b1e8c1afe41a289a/jetified-rxandroidble-1.5.0/jars/classes.jar!/" />
-      <root url="file://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/73b13f3b3f9e03b4b1e8c1afe41a289a/jetified-rxandroidble-1.5.0/res" />
+      <root url="jar://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/8fa8cb2cd9ee27eb612bcde65f9212f5/jetified-rxandroidble-1.5.0/jars/classes.jar!/" />
+      <root url="file://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/8fa8cb2cd9ee27eb612bcde65f9212f5/jetified-rxandroidble-1.5.0/res" />
     </CLASSES>
     <JAVADOC>
       <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.polidea.rxandroidble2/rxandroidble/1.5.0/5651bbba38e5bad6547ac3a96588427e2c25cee4/rxandroidble-1.5.0-javadoc.jar!/" />

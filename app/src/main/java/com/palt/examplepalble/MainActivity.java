@@ -28,9 +28,9 @@ import android.widget.TextView;
 import com.palt.examplepalble.services.ContinuousService;
 import com.paltechnologies.pal8.PalBle.PalBle;
 import com.paltechnologies.pal8.PalBle.PalScanListener;
+import com.paltechnologies.pal8.PalBle.ScanParameters;
 import com.paltechnologies.pal8.PalHelper;
-import com.paltechnologies.pal8.ScanParameters;
-import com.paltechnologies.pal8.devices.DownloadInfo;
+import com.paltechnologies.pal8.data.info.DownloadInfo;
 import com.paltechnologies.pal8.devices.PalDevice;
 import com.paltechnologies.pal8.devices.activator_micro.PalActivatorMicro;
 import com.paltechnologies.pal8.devices.activator_micro.PalActivatorMicroListener;
@@ -286,7 +286,7 @@ public class MainActivity extends AppCompatActivity
             }
         } else if(dfuSw.isChecked()) {
             setMessageOnUI(device.getSerial() + " starting DFU");
-            device.enableDFU(getApplicationContext(), "/uActivator/fw/activator_micro_0_3_0_3.zip");
+            device.enableDFU(getApplicationContext(), "/uActivator/fw/activator_micro_0_3_4_3.zip");
         } else {
             setMessageOnUI(device.getSerial() + " disconnected");
             saveTiming(0);
