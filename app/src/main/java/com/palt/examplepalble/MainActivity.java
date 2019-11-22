@@ -35,6 +35,7 @@ import com.paltechnologies.pal8.devices.PalDevice;
 import com.paltechnologies.pal8.devices.activator_micro.PalActivatorMicro;
 import com.paltechnologies.pal8.devices.activator_micro.PalActivatorMicroListener;
 import com.paltechnologies.pal8.devices.activator_micro.data.ActivatorMicroConnectionInfo;
+import com.paltechnologies.pal8.devices.activator_micro.data.ActivatorMicroEpoch;
 import com.paltechnologies.pal8.devices.activator_micro.data.ActivatorMicroEpochs;
 import com.paltechnologies.pal8.devices.activator_micro.data.ActivatorMicroSummaries;
 import com.paltechnologies.pal8.devices.activator_micro.data.ActivatorMicroSummary;
@@ -49,6 +50,7 @@ import java.io.OutputStreamWriter;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.List;
 import java.util.Locale;
 
 public class MainActivity extends AppCompatActivity
@@ -268,6 +270,16 @@ public class MainActivity extends AppCompatActivity
                 + "\nsitting: " + summary.getSittingSeconds()
                 + "\nupright: " + summary.getUprightSeconds()
                 + "\nstepping: " + summary.getSteppingSeconds();
+
+        List<ActivatorMicroEpoch> epoch = epochs.getList(device.getConnectionInfo().getCurrentDeviceDate());
+        SimpleDateFormat format = new SimpleDateFormat("EEEE, MMMM d, yyyy 'at' h:mm:ss.SSS a", Locale.ENGLISH);
+        for (int i = 0; i < epoch.size(); ++i) {
+            String string = "Epoch: " + epoch.get(i).getStepCount()
+                    + " steps between " + format.format(epoch.get(i).getFrom().getTime())
+                    + " and " + format.format(epoch.get(i).getTo().getTime())
+                    + " for " + epoch.get(i).getDurationSeconds() + " seconds";
+            Log.i(TAG, "onSummaryEpochs: " + string);
+        }
 
         setEpochOnUI(epochString);
     }
